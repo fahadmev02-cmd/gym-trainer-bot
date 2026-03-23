@@ -1,0 +1,50 @@
+# app/config.py
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Twilio
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
+
+# OpenAI / Ollama
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+
+# MongoDB
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "gym_trainer")
+
+# Google Sheets
+GOOGLE_SHEETS_CREDENTIALS_FILE = os.getenv("GOOGLE_SHEETS_CREDENTIALS_FILE", "credentials.json")
+GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "GymMembers")
+
+# Security
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "secret123")
+
+# App
+PORT = int(os.getenv("PORT", 8000))
+
+
+class Config:
+    TWILIO_ACCOUNT_SID = TWILIO_ACCOUNT_SID
+    TWILIO_AUTH_TOKEN = TWILIO_AUTH_TOKEN
+    TWILIO_WHATSAPP_NUMBER = TWILIO_WHATSAPP_NUMBER
+    OPENAI_API_KEY = OPENAI_API_KEY
+    OPENAI_MODEL = OPENAI_MODEL
+    OLLAMA_URL = OLLAMA_URL
+    OLLAMA_MODEL = OLLAMA_MODEL
+    MONGODB_URI = MONGODB_URI
+    MONGODB_DATABASE = MONGODB_DATABASE
+    GOOGLE_SHEETS_CREDENTIALS_FILE = GOOGLE_SHEETS_CREDENTIALS_FILE
+    GOOGLE_SHEET_NAME = GOOGLE_SHEET_NAME
+    WEBHOOK_SECRET = WEBHOOK_SECRET
+    PORT = PORT
+
+
+config = Config()
