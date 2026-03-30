@@ -1,71 +1,93 @@
 # app/routes/webhook.py
-from fastapi import APIRouter
-from fastapi import APIRouter, Request, Form, HTTPException, Depends
-from fastapi.responses import Response
+from fastapi import APIRouter, Request, Form, Response
+from typing import Optional
 from app.utils.conversation_manager import conversation_manager
 from app.services.whatsapp_service import whatsapp_service
-from app.config import config
-import hmac
-import hashlib
+from app.services.ai_service import ai_service
 
 router = APIRouter()
-
-
-def verify_twilio_signature(request: Request):
-    """
-    Security: Verify that the request actually came from Twilio.
-    This prevents fake requests to your webhook.
-    """
-    # For development, you can skip this check
-    # For production, implement proper Twilio signature verification
-    pass
 
 
 @router.post("/webhook")
 async def whatsapp_webhook(
     request: Request,
-    From: str = Form(...),        # Sender's WhatsApp number
-    Body: str = Form(...),        # Message text
-    MessageSid: str = Form(None)  # Message ID from Twilio
+    From: str = Form(...),
+    Body: str = Form(default=""),
+    MessageSid: str = Form(None),
+    NumMedia: str = Form(default="0"),        # ✅ How many photos sent
+    MediaUrl0: Optional[str] = Form(None),    # ✅ Photo URL if sent
+    MediaContentType0: Optional[str] = Form(None)  # ✅ image/jpeg etc
 ):
     """
-    This is the main webhook endpoint.
-    Twilio calls this URL every time someone sends a message to your WhatsApp number.
-    
-    FastAPI automatically parses the form data that Twilio sends.
+    Main webhook endpoint.
+    Now handles both text messages AND photos.
     """
     try:
-        print(f"\n📨 Incoming message from {From}: {Body}")
-        
-        # Clean up the sender's phone number
-        # Twilio sends it as "whatsapp:+919876543210"
-        # We extract just "+919876543210"
+        print(f"\n📨 Message from {From}")
+        print(f"📝 Text: {Body}")
+        print(f"📸 Media count: {NumMedia}")
+
+        # Clean phone number
         sender_phone = From.replace("whatsapp:", "").strip()
-        
-        # Process the message and get response
-        response_text = conversation_manager.process_message(
-            phone=sender_phone,
-            message=Body
-        )
-        
-        # Send the response via WhatsApp
+
+        # ✅ Check if user sent a photo
+        num_media = int(NumMedia) if NumMedia else 0
+
+        if num_media > 0 and MediaUrl0:
+            # ─────────────────────────────────────
+            # USER SENT A PHOTO
+            # ─────────────────────────────────────
+            print(f"📸 Photo received: {MediaUrl0}")
+            print(f"📸 Type: {MediaContentType0}")
+
+            # Check if it's actually an image
+            if MediaContentType0 and "image" in MediaContentType0:
+                print("✅ Valid image received - sending for analysis")
+
+                # Send "analyzing" message to user first
+                whatsapp_service.send_message(
+                    From,
+                    "📸 Photo mil gaya! Analyze kar raha hoon... thoda wait karo 🔍"
+                )
+
+                # Analyze the BMI report image
+                response_text = ai_service.analyze_bmi_image(
+                    image_url=MediaUrl0,
+                    phone=sender_phone
+                )
+
+            else:
+                response_text = (
+                    "Yeh file support nahi hai. "
+                    "Please apni BMI report ki clear photo bhejo 📸"
+                )
+
+        else:
+            # ─────────────────────────────────────
+            # USER SENT TEXT MESSAGE (Normal flow)
+            # ─────────────────────────────────────
+            if not Body or not Body.strip():
+                response_text = "Kuch message bhi bhejo bhai 😄"
+            else:
+                response_text = conversation_manager.process_message(
+                    phone=sender_phone,
+                    message=Body
+                )
+
+        # Send response
         if response_text:
             whatsapp_service.send_message(From, response_text)
-        
-        # Twilio expects an empty 200 response
+
+        # Twilio expects empty 200 response
         return Response(content="", status_code=200)
-    
+
     except Exception as e:
         print(f"❌ Webhook error: {e}")
-        # Still return 200 to prevent Twilio from retrying
         return Response(content="", status_code=200)
 
 
 @router.get("/webhook")
 async def webhook_health_check():
-    """
-    Health check endpoint - useful to verify the server is running.
-    """
     return {
         "status": "running",
         "message": "WhatsApp AI Gym Trainer is active! 💪"
