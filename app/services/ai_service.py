@@ -209,10 +209,10 @@ class AIService:
             "Plain text only. No stars. No hashtags."
         )
 
-        # Determine exercise count based on experience
+        # Determine exercise count and cardio/warmup section based on experience
         if experience_level in ("just_starting", "less_1_month"):
             exercise_count = "3 main exercises only"
-            cardio_section = (
+            warmup_block = (
                 "WARM UP (10 min) - Injury Prevention\n"
                 "Exercise 1: X reps\n"
                 "Exercise 2: X seconds\n\n"
@@ -221,8 +221,10 @@ class AIService:
                 cardio_section = (
                     "CARDIO (10 min warmup) - Heart Health\n"
                     "Treadmill or jump rope: 10 min\n\n"
-                    + cardio_section
+                    + warmup_block
                 )
+            else:
+                cardio_section = warmup_block
         elif experience_level == "1_2_months":
             exercise_count = "4 to 5 main exercises"
             cardio_section = (
@@ -249,8 +251,6 @@ class AIService:
                 "END CARDIO (10-15 min) - Fat Burn\n"
                 "Treadmill or cycling at moderate pace\n\n"
             )
-
-        injury_section = ("\n" + injury_rules + "\n") if injury_rules else ""
 
         user_message = (
             "Create Day " + str(day_num) + " workout for "
@@ -293,7 +293,6 @@ class AIService:
             "- No extra explanation\n"
             "- No markdown\n"
             "- Adjust sets/reps per intensity: " + intensity_note + "\n"
-            + (injury_rules + "\n" if injury_rules else "")
         )
 
         return self._call_groq(system_prompt, [], user_message)
@@ -433,7 +432,6 @@ class AIService:
             "- Goal specific exercises\n"
             "- Follow experience level exercise count strictly\n"
             "- Maximum 500 words total\n"
-            + (injury_rules + "\n" if injury_rules else "")
         )
 
         return self._call_groq(system_prompt, [], user_message)
