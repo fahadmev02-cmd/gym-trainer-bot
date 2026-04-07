@@ -38,6 +38,30 @@ class ReminderService:
             replace_existing=True
         )
 
+        # Check for users inactive > 24 hours — run every hour
+        self.scheduler.add_job(
+            self._send_inactivity_nudges,
+            trigger=CronTrigger(hour="*", minute=0),
+            id="inactivity_nudge",
+            replace_existing=True
+        )
+
+        # Reset weekly workout counter every Monday 00:01
+        self.scheduler.add_job(
+            self._reset_weekly_counters,
+            trigger=CronTrigger(day_of_week="mon", hour=0, minute=1),
+            id="weekly_reset",
+            replace_existing=True
+        )
+
+        # Auto-regenerate plans every Sunday at 9 AM
+        self.scheduler.add_job(
+            self._regenerate_adaptive_plans,
+            trigger=CronTrigger(day_of_week="sun", hour=9, minute=0),
+            id="plan_regen",
+            replace_existing=True
+        )
+
     def _parse_time(self, time_str: str):
         if not time_str:
             return None, None
@@ -96,7 +120,8 @@ class ReminderService:
                 ):
                     whatsapp_service.send_reminder(
                         phone,
-                        "Hey " + name + "! Gym time is coming up soon. Are you ready for today's workout? Type workout to see your plan!"
+                        "Hey " + name + "! Gym time aa raha hai. "
+                        "Aaj ka workout ready? T type karo! 💪"
                     )
 
                 if self._is_time_match(
@@ -104,15 +129,22 @@ class ReminderService:
                 ):
                     whatsapp_service.send_reminder(
                         phone,
-                        "Sleep time " + name + "! Recovery is just as important as training. Rest well and come back stronger tomorrow!"
+                        "Sleep time " + name + "! Recovery equally important hai. "
+                        "Rest le — kal ke liye recharge ho! 😴"
                     )
 
                 if self._is_time_match(
                     user.get("wake_up_time"), current_hour, current_minute
                 ):
+                    streak = int(user.get("streak_count", 0))
+                    streak_txt = (
+                        " Teri " + str(streak) + " din ki streak chal rahi hai!"
+                        if streak > 1 else ""
+                    )
                     whatsapp_service.send_reminder(
                         phone,
-                        "Good morning " + name + "! A new day to get closer to your goals. Drink water, have breakfast and stay active!"
+                        "Good morning " + name + "!" + streak_txt
+                        + " Paani pi, breakfast kar, goal yaad rakh! 🌅"
                     )
 
         except Exception as e:
@@ -127,7 +159,7 @@ class ReminderService:
             for user in users:
                 whatsapp_service.send_reminder(
                     user.get("phone"),
-                    "Drink water! Stay hydrated. Aim for 3 to 4 liters today."
+                    "Paani pi bhai! 3-4 liters daily. Muscles ko hydration chahiye! 💧"
                 )
         except Exception as e:
             print("❌ Hydration reminder error:", e)
@@ -140,12 +172,110 @@ class ReminderService:
             users = db_service.get_all_users_with_reminders()
             for user in users:
                 name = user.get("name", "there")
-                whatsapp_service.send_reminder(
-                    user.get("phone"),
-                    "Weekly Progress Check " + name + "! Please share: 1. Current weight in kg. 2. Workouts completed this week. 3. Any difficulties. Type progress to log your update!"
+                weekly = int(user.get("weekly_workouts_done", 0))
+                target = int(user.get("workout_days", 4))
+                score = int(user.get("consistency_score", 0))
+
+                msg = (
+                    "Weekly Check-in " + name + "!\n\n"
+                    "Is hafte: " + str(weekly) + "/" + str(target) +
+                    " workouts done\n"
+                    "Consistency: " + str(score) + "%\n\n"
+                    "Update bhejo:\n"
+                    "1. Current weight (kg)?\n"
+                    "2. Koi issue?\n\n"
+                    "Type P to log progress!"
                 )
+                whatsapp_service.send_reminder(user.get("phone"), msg)
         except Exception as e:
             print("❌ Weekly progress check error:", e)
+
+    def _send_inactivity_nudges(self):
+        """Send nudge to users who haven't messaged in >24 hours."""
+        from app.services.database_service import db_service
+        from app.services.whatsapp_service import whatsapp_service
+        from app.services.engagement_service import engagement_service
+
+        try:
+            inactive_users = db_service.get_inactive_users(hours=24)
+            for user in inactive_users:
+                phone = user.get("phone")
+                name = user.get("name", "bhai")
+                days_since = int(
+                    (
+                        datetime.utcnow() - user.get(
+                            "last_interaction", datetime.utcnow()
+                        )
+                    ).total_seconds() // 86400
+                )
+                nudge = engagement_service.get_nudge_message(days_since)
+                whatsapp_service.send_reminder(
+                    phone,
+                    name + ", " + nudge
+                )
+        except Exception as e:
+            print("❌ Inactivity nudge error:", e)
+
+    def _reset_weekly_counters(self):
+        """Reset weekly workout counts every Monday."""
+        from app.services.database_service import db_service
+        try:
+            db_service.reset_weekly_workouts()
+            print("✅ Weekly workout counters reset")
+        except Exception as e:
+            print("❌ Weekly reset error:", e)
+
+    def _regenerate_adaptive_plans(self):
+        """
+        Every Sunday regenerate workout + diet plans with adaptive intensity.
+        - consistency >= 80% → increase intensity
+        - consistency < 40% → decrease intensity
+        - else → keep moderate
+        """
+        from app.services.database_service import db_service
+        from app.services.ai_service import ai_service
+        from app.services.whatsapp_service import whatsapp_service
+        from datetime import datetime
+
+        try:
+            users = db_service.get_all_users_with_reminders()
+            for user in users:
+                phone = user.get("phone")
+                name = user.get("name", "bhai")
+                score = int(user.get("consistency_score", 0))
+
+                if score >= 80:
+                    new_intensity = "intense"
+                elif score < 40:
+                    new_intensity = "light"
+                else:
+                    new_intensity = "moderate"
+
+                user["plan_intensity"] = new_intensity
+                workout_plan = ai_service.generate_workout_plan(user)
+                diet_plan = ai_service.generate_diet_plan(user)
+
+                db_service.update_user(phone, {
+                    "workout_plan": workout_plan,
+                    "diet_plan": diet_plan,
+                    "plan_intensity": new_intensity,
+                    "plan_generated_at": datetime.utcnow()
+                })
+
+                intensity_msg = {
+                    "intense": "Tu consistent hai! Plan upgrade ho gaya! 🔥",
+                    "light":   "Koi nahi, plan thoda easy kiya. Wapas aao! 💪",
+                    "moderate": "Balanced plan ready hai! 👍"
+                }.get(new_intensity, "")
+
+                whatsapp_service.send_reminder(
+                    phone,
+                    name + "! Naya weekly plan ready hai!\n\n"
+                    + intensity_msg + "\n\n"
+                    "W1 type karo new plan dekhne ke liye!"
+                )
+        except Exception as e:
+            print("❌ Plan regeneration error:", e)
 
     def stop(self):
         if self.scheduler.running:

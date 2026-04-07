@@ -1,11 +1,13 @@
 # app/services/database_service.py
 
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
+_TODAY = lambda: date.today().isoformat()  # noqa: E731
 
 
 class DatabaseService:
@@ -27,32 +29,9 @@ class DatabaseService:
             return None
 
     def create_user(self, phone: str):
+        from app.models.user_model import create_user_document
         try:
-            user_doc = {
-                "phone": phone,
-                "receipt_number": None,
-                "name": None,
-                "age": None,
-                "weight": None,
-                "height": None,
-                "goal": None,
-                "diet_preference": None,
-                "workout_days": None,
-                "meals_per_day": None,
-                "wake_up_time": None,
-                "gym_time": None,
-                "sleep_time": None,
-                "workout_plan": None,
-                "diet_plan": None,
-                "is_verified": False,
-                "onboarding_complete": False,
-                "onboarding_step": "start",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-                "last_interaction": datetime.utcnow(),
-                "weekly_progress": [],
-                "conversation_history": []
-            }
+            user_doc = create_user_document(phone)
             self.users_collection.insert_one(user_doc)
             print("✅ New user created:", phone)
             return user_doc
@@ -111,6 +90,100 @@ class DatabaseService:
         except Exception as e:
             print("❌ add_progress_entry error:", e)
 
+    # ── Streak & engagement ──────────────────────────────────
+
+    def log_workout_done(self, phone: str) -> dict:
+        """
+        Mark today's workout as done.
+        Updates streak, weekly count, consistency score.
+        Returns updated engagement info.
+        """
+        try:
+            user = self.get_user(phone)
+            if not user:
+                return {}
+
+            today = _TODAY()
+            last_checkin = user.get("last_checkin_date")
+            streak = int(user.get("streak_count", 0))
+            longest = int(user.get("longest_streak", 0))
+            weekly = int(user.get("weekly_workouts_done", 0))
+            total = int(user.get("total_workouts_done", 0))
+
+            # Avoid double-counting same day
+            if last_checkin == today:
+                return {
+                    "streak": streak,
+                    "weekly": weekly,
+                    "total": total,
+                    "already_done": True
+                }
+
+            yesterday = (date.today() - timedelta(days=1)).isoformat()
+            if last_checkin == yesterday:
+                streak += 1
+            else:
+                streak = 1  # reset streak
+
+            longest = max(longest, streak)
+            weekly += 1
+            total += 1
+
+            # Consistency score = (workouts done this week / target days) * 100
+            workout_days = max(int(user.get("workout_days", 4)), 1)
+            consistency = min(int((weekly / workout_days) * 100), 100)
+
+            self.update_user(phone, {
+                "streak_count": streak,
+                "longest_streak": longest,
+                "last_checkin_date": today,
+                "last_workout_date": today,
+                "weekly_workouts_done": weekly,
+                "total_workouts_done": total,
+                "consistency_score": consistency
+            })
+            return {
+                "streak": streak,
+                "weekly": weekly,
+                "total": total,
+                "consistency": consistency,
+                "already_done": False
+            }
+        except Exception as e:
+            print("❌ log_workout_done error:", e)
+            return {}
+
+    def reset_weekly_workouts(self):
+        """Called every Monday to reset weekly counter."""
+        try:
+            self.users_collection.update_many(
+                {"onboarding_complete": True},
+                {"$set": {"weekly_workouts_done": 0}}
+            )
+        except Exception as e:
+            print("❌ reset_weekly_workouts error:", e)
+
+    def add_calorie_log(self, phone: str, calories: int, notes: str = ""):
+        try:
+            entry = {
+                "date": _TODAY(),
+                "calories": calories,
+                "notes": notes
+            }
+            self.users_collection.update_one(
+                {"phone": phone},
+                {
+                    "$push": {
+                        "calorie_logs": {
+                            "$each": [entry],
+                            "$slice": -30
+                        }
+                    }
+                }
+            )
+        except Exception as e:
+            print("❌ add_calorie_log error:", e)
+
     def get_all_users_with_reminders(self):
         try:
             return list(self.users_collection.find({
@@ -119,6 +192,19 @@ class DatabaseService:
             }))
         except Exception as e:
             print("❌ get_all_users_with_reminders error:", e)
+            return []
+
+    def get_inactive_users(self, hours: int = 24):
+        """Return users who haven't interacted in the last `hours` hours."""
+        try:
+            cutoff = datetime.utcnow() - timedelta(hours=hours)
+            return list(self.users_collection.find({
+                "is_verified": True,
+                "onboarding_complete": True,
+                "last_interaction": {"$lt": cutoff}
+            }))
+        except Exception as e:
+            print("❌ get_inactive_users error:", e)
             return []
 
 

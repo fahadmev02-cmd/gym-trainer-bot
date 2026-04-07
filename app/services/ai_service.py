@@ -123,8 +123,17 @@ class AIService:
     ) -> str:
         """
         Sirf ek din ka workout generate karo
-        Short clean aur readable
+        Short clean aur readable — intensity adaptive
         """
+        intensity = user_data.get("plan_intensity", "moderate")
+        workout_time = user_data.get("available_workout_time", 60)
+
+        intensity_note = {
+            "light": "Keep it LIGHT — fewer sets, longer rest periods (user missed sessions).",
+            "moderate": "Standard intensity — balanced sets and reps.",
+            "intense": "Push HARD — extra sets, shorter rest (user is consistent, reward them)."
+        }.get(intensity, "Standard intensity.")
+
         system_prompt = (
             "You are an elite personal trainer. "
             "Create a single day workout plan. "
@@ -136,7 +145,9 @@ class AIService:
         user_message = (
             "Create Day " + str(day_num) + " workout for "
             + str(muscle_group) + ".\n"
-            "User goal: " + str(user_data.get("goal", "Fitness")) + "\n\n"
+            "User goal: " + str(user_data.get("goal", "Fitness")) + "\n"
+            "Intensity: " + intensity_note + "\n"
+            "Available time: " + str(workout_time) + " minutes\n\n"
 
             "EXACT FORMAT - Follow this exactly:\n\n"
 
@@ -177,6 +188,7 @@ class AIService:
             "- Muscle group specific everything\n"
             "- No extra explanation\n"
             "- No markdown\n"
+            "- Adjust sets/reps per intensity: " + intensity_note + "\n"
         )
 
         return self._call_groq(system_prompt, [], user_message)
@@ -193,6 +205,8 @@ class AIService:
         """
         workout_days = int(user_data.get("workout_days", 4))
         goal = str(user_data.get("goal", "Fitness"))
+        intensity = user_data.get("plan_intensity", "moderate")
+        workout_time = user_data.get("available_workout_time", 60)
 
         # Day schedules based on workout days
         schedules = {
@@ -236,6 +250,12 @@ class AIService:
 
         schedule = schedules.get(workout_days, schedules[4])
 
+        intensity_note = {
+            "light": "LIGHT intensity — reduce sets by 1, increase rest time.",
+            "moderate": "MODERATE intensity — standard sets and reps.",
+            "intense": "HIGH intensity — add extra sets, shorter rest periods."
+        }.get(intensity, "MODERATE intensity.")
+
         system_prompt = (
             "You are an elite personal trainer. "
             "Create a structured 7 day workout schedule. "
@@ -246,6 +266,8 @@ class AIService:
             "Create a 7 day workout plan for:\n"
             "Goal: " + goal + "\n"
             "Workout days: " + str(workout_days) + " per week\n"
+            "Available time per session: " + str(workout_time) + " minutes\n"
+            "Intensity: " + intensity_note + "\n"
             "Schedule: " + str(schedule) + "\n\n"
 
             "FORMAT:\n\n"
@@ -282,13 +304,28 @@ class AIService:
         diet_type = str(user_data.get("diet_preference", "Veg"))
         goal = str(user_data.get("goal", "Fitness"))
         weight = str(user_data.get("weight", "70"))
+        budget = str(user_data.get("budget", "medium"))
+        region = str(user_data.get("region", "North Indian"))
 
-        if diet_type.lower() == "veg":
+        diet_lower = diet_type.lower()
+        if "vegan" in diet_lower:
+            protein_sources = "tofu, soya chunks, dal, sprouts, peanut butter"
+            restriction = "STRICTLY VEGAN - No dairy, no eggs, no meat"
+        elif "jain" in diet_lower:
+            protein_sources = "paneer, dal, tofu, nuts, seeds"
+            restriction = "JAIN - No root vegetables (no onion, garlic, potato, carrot, beet)"
+        elif "veg" in diet_lower:
             protein_sources = "paneer, tofu, dal, curd, milk, soya"
             restriction = "STRICTLY VEG - No meat, chicken, fish, eggs"
         else:
             protein_sources = "chicken breast, eggs, fish, paneer"
             restriction = "Non-veg allowed"
+
+        budget_note = {
+            "low":    "BUDGET LOW - Use dal, soya chunks, eggs. Avoid expensive supplements.",
+            "medium": "BUDGET MEDIUM - Use paneer, eggs, chicken occasionally.",
+            "high":   "BUDGET HIGH - Use whey protein, chicken breast, fish freely."
+        }.get(budget, "BUDGET MEDIUM")
 
         is_comp = any(w in goal.lower() for w in [
             "compet", "stage", "show", "pro", "contest"
@@ -309,7 +346,9 @@ class AIService:
             "Goal: " + goal + "\n"
             "Diet: " + diet_type + "\n"
             "Rule: " + restriction + "\n"
-            "Protein sources: " + protein_sources + "\n\n"
+            "Protein sources: " + protein_sources + "\n"
+            "Budget: " + budget_note + "\n"
+            "Region: " + region + " (use regional foods as base)\n\n"
 
             "EXACT FORMAT:\n\n"
 
@@ -360,8 +399,9 @@ class AIService:
             "Night: supplement + dose\n\n"
 
             "RULES:\n"
-            "- Only Indian foods\n"
+            "- Only Indian foods from " + region + " region\n"
             "- Follow: " + restriction + "\n"
+            "- Follow budget: " + budget_note + "\n"
             "- Protein min 2g per kg (" + weight + "kg)\n"
             "- Short format like above\n"
             "- Maximum 500 words\n"
@@ -537,21 +577,39 @@ RULES:
     # ════════════════════════════════════════════════
 
     def get_fitness_response(
-        self, user_data, user_message, conversation_history
+        self, user_data, user_message, conversation_history,
+        tone_hint: str = ""
     ):
-        system_prompt = (
+        name = str(user_data.get("name", "Member"))
+        goal = str(user_data.get("goal", "Fitness"))
+        weight = str(user_data.get("weight", "N/A"))
+        region = str(user_data.get("region", ""))
+        budget = str(user_data.get("budget", ""))
+
+        context = (
             "You are FitBot, elite AI fitness trainer on WhatsApp.\n"
-            "User: " + str(user_data.get("name", "Member")) + "\n"
-            "Goal: " + str(user_data.get("goal", "Fitness")) + "\n"
-            "Weight: " + str(user_data.get("weight", "N/A")) + " kg\n\n"
-            "RULES:\n"
+            "User: " + name + "\n"
+            "Goal: " + goal + "\n"
+            "Weight: " + weight + " kg\n"
+        )
+        if region:
+            context += "Region: " + region + "\n"
+        if budget:
+            context += "Budget: " + budget + "\n"
+
+        context += (
+            "\nRULES:\n"
             "1. Max 80 words\n"
             "2. Plain text only\n"
             "3. Fitness topics only\n"
             "4. Motivating and friendly\n"
-            "5. Science backed advice\n"
+            "5. Hinglish tone\n"
+            "6. Science backed advice\n"
         )
-        return self._call_groq(system_prompt, conversation_history, user_message)
+        if tone_hint:
+            context += "7. " + tone_hint + "\n"
+
+        return self._call_groq(context, conversation_history, user_message)
 
     def get_ai_response(self, system_prompt, conversation_history, user_message):
         return self._call_groq(system_prompt, conversation_history, user_message)
