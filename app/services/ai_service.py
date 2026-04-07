@@ -118,6 +118,66 @@ class AIService:
     # SINGLE DAY WORKOUT - SHORT AND CLEAN
     # ════════════════════════════════════════════════
 
+    def _get_experience_rules(self, experience_level: str) -> str:
+        """Return exercise count and split rules based on experience level."""
+        rules = {
+            "just_starting": (
+                "BEGINNER (0-2 weeks): 3 exercises per session. "
+                "Full body or simple split. Focus on FORM over weight. "
+                "Include warmup and post-workout stretching."
+            ),
+            "less_1_month": (
+                "BEGINNER (<1 month): 3 exercises per session. "
+                "Full body or simple split. Focus on FORM over weight. "
+                "Include warmup and post-workout stretching."
+            ),
+            "1_2_months": (
+                "INTERMEDIATE (1-2 months): 4-5 exercises per session. "
+                "Push/Pull/Legs or Upper/Lower split. Moderate intensity. "
+                "Include warmup and post-workout stretching."
+            ),
+            "2_plus_months": (
+                "ADVANCED (2+ months): 5-6 exercises per session. "
+                "Advanced split — Push/Pull/Legs or Bro split. Higher intensity. "
+                "Include warmup and post-workout stretching."
+            ),
+        }
+        return rules.get(experience_level, rules["1_2_months"])
+
+    def _get_injury_rules(self, injuries) -> str:
+        """Return exercise modification rules based on injuries."""
+        if not injuries:
+            return ""
+        injury_lower = str(injuries).lower()
+        notes = ["INJURY MODIFICATIONS (STRICT — must follow):"]
+        notes.append("User has: " + str(injuries))
+        if "knee" in injury_lower:
+            notes.append("- Knee injury: AVOID squats, lunges, leg press. Use leg extensions, seated leg curl instead.")
+        if "back" in injury_lower or "spine" in injury_lower or "lumbar" in injury_lower:
+            notes.append("- Back pain: AVOID heavy deadlifts, barbell rows. Use cable rows, machine exercises instead.")
+        if "shoulder" in injury_lower:
+            notes.append("- Shoulder injury: AVOID overhead press, upright rows. Use lateral raises with light weight instead.")
+        if "wrist" in injury_lower:
+            notes.append("- Wrist injury: AVOID barbell curls, heavy pressing. Use cables or machines instead.")
+        if "elbow" in injury_lower:
+            notes.append("- Elbow injury: AVOID tricep dips, heavy curls. Use light cable exercises instead.")
+        notes.append("- Always substitute any exercise that stresses the injured area.")
+        return "\n".join(notes)
+
+    def _get_cardio_rules(self, cardio_preference: str) -> str:
+        """Return cardio structure rules based on preference."""
+        if cardio_preference == "dedicated":
+            return (
+                "CARDIO: User wants DEDICATED cardio days. "
+                "Add 1-2 cardio-only days in the week (30-40 min steady-state or HIIT). "
+                "On workout days keep cardio to just 5 min warmup."
+            )
+        else:
+            return (
+                "CARDIO: User wants cardio MIXED with workouts. "
+                "Add 10-15 min cardio at the END of every workout session."
+            )
+
     def generate_single_day_workout(
         self, user_data: dict, day_num: int, muscle_group: str
     ) -> str:
@@ -127,12 +187,19 @@ class AIService:
         """
         intensity = user_data.get("plan_intensity", "moderate")
         workout_time = user_data.get("available_workout_time", 60)
+        experience_level = user_data.get("experience_level", "1_2_months")
+        injuries = user_data.get("injuries")
+        cardio_preference = user_data.get("cardio_preference", "mix")
 
         intensity_note = {
             "light": "Keep it LIGHT — fewer sets, longer rest periods (user missed sessions).",
             "moderate": "Standard intensity — balanced sets and reps.",
             "intense": "Push HARD — extra sets, shorter rest (user is consistent, reward them)."
         }.get(intensity, "Standard intensity.")
+
+        experience_rules = self._get_experience_rules(experience_level)
+        injury_rules = self._get_injury_rules(injuries)
+        cardio_rules = self._get_cardio_rules(cardio_preference)
 
         system_prompt = (
             "You are an elite personal trainer. "
@@ -142,39 +209,76 @@ class AIService:
             "Plain text only. No stars. No hashtags."
         )
 
+        # Determine exercise count based on experience
+        if experience_level in ("just_starting", "less_1_month"):
+            exercise_count = "3 main exercises only"
+            cardio_section = (
+                "WARM UP (10 min) - Injury Prevention\n"
+                "Exercise 1: X reps\n"
+                "Exercise 2: X seconds\n\n"
+            )
+            if cardio_preference == "mix":
+                cardio_section = (
+                    "CARDIO (10 min warmup) - Heart Health\n"
+                    "Treadmill or jump rope: 10 min\n\n"
+                    + cardio_section
+                )
+        elif experience_level == "1_2_months":
+            exercise_count = "4 to 5 main exercises"
+            cardio_section = (
+                "CARDIO (10 min) - Heart Health\n"
+                "Exercise 1: X min | X bpm\n\n"
+                "WARM UP (5 min) - Injury Prevention\n"
+                "Exercise 1: X reps\n"
+                "Exercise 2: X seconds\n\n"
+            )
+        else:
+            exercise_count = "5 to 6 main exercises"
+            cardio_section = (
+                "CARDIO (15 min) - Heart Health\n"
+                "Exercise 1: X min | X bpm\n"
+                "Exercise 2: X min\n\n"
+                "WARM UP (10 min) - Injury Prevention\n"
+                "Exercise 1: X reps\n"
+                "Exercise 2: X seconds\n\n"
+            )
+
+        end_cardio = ""
+        if cardio_preference == "mix":
+            end_cardio = (
+                "END CARDIO (10-15 min) - Fat Burn\n"
+                "Treadmill or cycling at moderate pace\n\n"
+            )
+
+        injury_section = ("\n" + injury_rules + "\n") if injury_rules else ""
+
         user_message = (
             "Create Day " + str(day_num) + " workout for "
             + str(muscle_group) + ".\n"
             "User goal: " + str(user_data.get("goal", "Fitness")) + "\n"
             "Intensity: " + intensity_note + "\n"
+            "Experience level rule: " + experience_rules + "\n"
+            + (injury_rules + "\n" if injury_rules else "")
+            + "Cardio rule: " + cardio_rules + "\n"
             "Available time: " + str(workout_time) + " minutes\n\n"
 
             "EXACT FORMAT - Follow this exactly:\n\n"
-
-            "CARDIO (15 min) - Heart Health\n"
-            "Exercise 1: X min | X bpm\n"
-            "Exercise 2: X min\n\n"
-
-            "WARM UP (10 min) - Injury Prevention\n"
-            "Exercise 1: X reps\n"
-            "Exercise 2: X seconds\n\n"
-
-            "MAIN WORKOUT\n"
+            + cardio_section
+            + "MAIN WORKOUT\n"
             "1. Exercise Name\n"
             "   X sets x X reps | X sec rest\n"
             "   Tip: one line tip\n\n"
             "2. Exercise Name\n"
             "   X sets x X reps | X sec rest\n"
             "   Tip: one line tip\n\n"
-            "[5 to 6 exercises total]\n\n"
+            "[" + exercise_count + "]\n\n"
 
             "CORE (10 min) - Your Foundation\n"
             "1. Exercise: X sets x X reps\n"
             "2. Exercise: X sets x X reps\n"
-            "3. Exercise: X sets x X reps\n"
-            "4. Exercise: X sets x X reps\n\n"
-
-            "STRETCHING (8 min) - Recovery\n"
+            "3. Exercise: X sets x X reps\n\n"
+            + end_cardio
+            + "STRETCHING (8 min) - Recovery\n"
             "1. Stretch name: X sec\n"
             "2. Stretch name: X sec\n"
             "3. Stretch name: X sec\n"
@@ -182,13 +286,14 @@ class AIService:
 
             "RULES:\n"
             "- Maximum 400 words total\n"
-            "- 5 to 6 main exercises only\n"
-            "- 4 core exercises always\n"
+            "- " + exercise_count + " in MAIN WORKOUT\n"
+            "- 3 core exercises always\n"
             "- 4 stretches always\n"
             "- Muscle group specific everything\n"
             "- No extra explanation\n"
             "- No markdown\n"
             "- Adjust sets/reps per intensity: " + intensity_note + "\n"
+            + (injury_rules + "\n" if injury_rules else "")
         )
 
         return self._call_groq(system_prompt, [], user_message)
@@ -207,6 +312,9 @@ class AIService:
         goal = str(user_data.get("goal", "Fitness"))
         intensity = user_data.get("plan_intensity", "moderate")
         workout_time = user_data.get("available_workout_time", 60)
+        experience_level = user_data.get("experience_level", "1_2_months")
+        injuries = user_data.get("injuries")
+        cardio_preference = user_data.get("cardio_preference", "mix")
 
         # Day schedules based on workout days
         schedules = {
@@ -256,11 +364,49 @@ class AIService:
             "intense": "HIGH intensity — add extra sets, shorter rest periods."
         }.get(intensity, "MODERATE intensity.")
 
+        experience_rules = self._get_experience_rules(experience_level)
+        injury_rules = self._get_injury_rules(injuries)
+        cardio_rules = self._get_cardio_rules(cardio_preference)
+
         system_prompt = (
             "You are an elite personal trainer. "
             "Create a structured 7 day workout schedule. "
             "Plain text only. No stars. No hashtags. No markdown."
         )
+
+        # Example workout day format based on experience
+        if experience_level in ("just_starting", "less_1_month"):
+            example_day = (
+                "DAY 1 - CHEST AND TRICEPS\n"
+                "Warm up: Arm circles, Light pushups\n"
+                "Main: Bench Press 3x10, Dumbbell Flyes 3x12, Tricep Pushdown 3x15\n"
+                "Core: Plank 3x30s, Crunches 3x15\n"
+                "Stretch: Chest stretch, Tricep stretch\n"
+                "End Cardio: 10 min treadmill (if mixed cardio)\n\n"
+            )
+        elif experience_level == "1_2_months":
+            example_day = (
+                "DAY 1 - CHEST AND TRICEPS\n"
+                "Cardio: Treadmill 10 min\n"
+                "Warm up: Arm circles, Shoulder rolls, Light pushups\n"
+                "Main: Bench Press 4x10, Incline Press 3x12, Cable Flyes 3x15, Tricep Pushdown 4x12\n"
+                "Core: Plank 3x45s, Crunches 3x20\n"
+                "Stretch: Chest stretch, Tricep stretch, Shoulder stretch\n"
+                "End Cardio: 10 min cardio (if mixed)\n\n"
+            )
+        else:
+            example_day = (
+                "DAY 1 - CHEST AND TRICEPS\n"
+                "Cardio: Treadmill 10 min + Jump rope 3 min\n"
+                "Warm up: Arm circles, Shoulder rolls, Light pushups\n"
+                "Main: Bench Press 4x10, Incline Press 4x12, "
+                "Cable Flyes 3x15, Tricep Pushdown 4x12, "
+                "Skull Crushers 3x12, Close Grip Press 3x10\n"
+                "Core: Plank 3x60s, Crunches 3x20, "
+                "Leg Raises 3x15, Russian Twists 3x20\n"
+                "Stretch: Chest stretch, Tricep stretch, Shoulder stretch\n"
+                "End Cardio: 15 min cardio (if mixed)\n\n"
+            )
 
         user_message = (
             "Create a 7 day workout plan for:\n"
@@ -268,20 +414,14 @@ class AIService:
             "Workout days: " + str(workout_days) + " per week\n"
             "Available time per session: " + str(workout_time) + " minutes\n"
             "Intensity: " + intensity_note + "\n"
+            "Experience level rule: " + experience_rules + "\n"
+            + (injury_rules + "\n" if injury_rules else "")
+            + "Cardio rule: " + cardio_rules + "\n"
             "Schedule: " + str(schedule) + "\n\n"
 
             "FORMAT:\n\n"
-            "DAY 1 - CHEST AND TRICEPS\n"
-            "Cardio: Treadmill 10 min + Jump rope 3 min\n"
-            "Warm up: Arm circles, Shoulder rolls, Light pushups\n"
-            "Main: Bench Press 4x10, Incline Press 4x12, "
-            "Cable Flyes 3x15, Tricep Pushdown 4x12, "
-            "Skull Crushers 3x12, Close Grip Press 3x10\n"
-            "Core: Plank 3x60s, Crunches 3x20, "
-            "Leg Raises 3x15, Russian Twists 3x20\n"
-            "Stretch: Chest stretch, Tricep stretch, Shoulder stretch\n\n"
-
-            "DAY 2 - REST\n"
+            + example_day
+            + "DAY 2 - REST\n"
             "Walk 20 min + Full body stretch 15 min\n\n"
 
             "[Continue for all 7 days same format]\n\n"
@@ -291,7 +431,9 @@ class AIService:
             "- All 7 days\n"
             "- REST days include walk and stretch\n"
             "- Goal specific exercises\n"
+            "- Follow experience level exercise count strictly\n"
             "- Maximum 500 words total\n"
+            + (injury_rules + "\n" if injury_rules else "")
         )
 
         return self._call_groq(system_prompt, [], user_message)

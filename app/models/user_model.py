@@ -21,6 +21,9 @@ def create_user_document(phone: str) -> dict:
         "workout_days": None,
         "available_workout_time": None,  # minutes per session
         "meals_per_day": None,
+        "experience_level": None,   # just_starting / less_1_month / 1_2_months / 2_plus_months
+        "injuries": None,           # None or description of injuries/conditions
+        "cardio_preference": None,  # dedicated / mix
         # ── Schedule ────────────────────────────────────────
         "wake_up_time": None,
         "gym_time": None,

@@ -94,6 +94,12 @@ class ConversationManager:
             return self._collect_gym_time(phone, message)
         elif step == "collecting_sleep_time":
             return self._collect_sleep_time(phone, user, message)
+        elif step == "collecting_experience":
+            return self._collect_experience(phone, message)
+        elif step == "collecting_injuries":
+            return self._collect_injuries(phone, message)
+        elif step == "collecting_cardio_preference":
+            return self._collect_cardio_preference(phone, user, message)
         elif step == "complete":
             return self._handle_general_conversation(phone, user, message)
         else:
@@ -141,9 +147,9 @@ class ConversationManager:
                 "MEMBERSHIP VERIFIED!\n\n"
                 "Welcome " + name + "!\n\n"
                 "Chalo tera Fitness Profile banate hain.\n"
-                "Sirf 13 quick questions — 3 minute ka kaam!\n\n"
+                "Sirf 16 quick questions — 3 minute ka kaam!\n\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
-                "Q1/13 — Teri age kya hai?\n"
+                "Q1/16 — Teri age kya hai?\n"
                 "━━━━━━━━━━━━━━━━━━━━━━\n"
                 "Example: 24"
             )
@@ -165,7 +171,7 @@ class ConversationManager:
                 "onboarding_step": "collecting_weight"
             })
             return (
-                "Q2/13 — Tera current weight? (kg)\n\n"
+                "Q2/16 — Tera current weight? (kg)\n\n"
                 "Example: 75"
             )
         except ValueError:
@@ -183,7 +189,7 @@ class ConversationManager:
                 "onboarding_step": "collecting_height"
             })
             return (
-                "Q3/13 — Teri height? (cm mein)\n\n"
+                "Q3/16 — Teri height? (cm mein)\n\n"
                 "Example: 175\n"
                 "5ft 9in = 175 cm"
             )
@@ -202,7 +208,7 @@ class ConversationManager:
                 "onboarding_step": "collecting_goal"
             })
             return (
-                "Q4/13 — Tera fitness goal?\n\n"
+                "Q4/16 — Tera fitness goal?\n\n"
                 "1 - Fat Loss\n"
                 "2 - Muscle Gain\n"
                 "3 - Maintain Fitness\n"
@@ -247,7 +253,7 @@ class ConversationManager:
             })
             return (
                 "Goal: " + goal + "\n\n"
-                "Q5/13 — Diet preference?\n\n"
+                "Q5/16 — Diet preference?\n\n"
                 "1 - Veg\n"
                 "2 - Non-Veg\n"
                 "3 - Vegan\n"
@@ -276,7 +282,7 @@ class ConversationManager:
         })
         return (
             "Diet: " + diet + "\n\n"
-            "Q6/13 — Tera monthly food budget?\n\n"
+            "Q6/16 — Tera monthly food budget?\n\n"
             "1 - Low (tight budget, basic foods)\n"
             "2 - Medium (paneer, eggs, chicken)\n"
             "3 - High (whey, fish, premium foods)\n\n"
@@ -300,7 +306,7 @@ class ConversationManager:
         })
         return (
             "Budget: " + budget.title() + "\n\n"
-            "Q7/13 — Tera region / state?\n\n"
+            "Q7/16 — Tera region / state?\n\n"
             "1 - North Indian (UP, Delhi, Punjab, Haryana)\n"
             "2 - South Indian (TN, Karnataka, Kerala, AP)\n"
             "3 - East Indian (Bengal, Odisha, Bihar)\n"
@@ -333,7 +339,7 @@ class ConversationManager:
         })
         return (
             "Region: " + region + "\n\n"
-            "Q8/13 — Hafte mein kitne din gym?\n\n"
+            "Q8/16 — Hafte mein kitne din gym?\n\n"
             "3 - Beginner\n"
             "4 - Recommended\n"
             "5 - Intermediate\n"
@@ -352,7 +358,7 @@ class ConversationManager:
             })
             return (
                 str(days) + " days per week!\n\n"
-                "Q9/13 — Har session mein kitna time available hai? (minutes)\n\n"
+                "Q9/16 — Har session mein kitna time available hai? (minutes)\n\n"
                 "Example: 45 ya 60 ya 90"
             )
         except ValueError:
@@ -371,7 +377,7 @@ class ConversationManager:
             })
             return (
                 str(minutes) + " min per session!\n\n"
-                "Q10/13 — Din mein kitni baar khana?\n\n"
+                "Q10/16 — Din mein kitni baar khana?\n\n"
                 "3 - Basic\n"
                 "4 - Good\n"
                 "5 - Best for fitness\n"
@@ -392,7 +398,7 @@ class ConversationManager:
             })
             return (
                 str(meals) + " meals per day!\n\n"
-                "Q11/13 — Subah kitne baje uthta hai?\n\n"
+                "Q11/16 — Subah kitne baje uthta hai?\n\n"
                 "Example: 6:00 AM"
             )
         except ValueError:
@@ -408,7 +414,7 @@ class ConversationManager:
         })
         return (
             "Wake up: " + wake_time + "\n\n"
-            "Q12/13 — Gym kitne baje jaata hai?\n\n"
+            "Q12/16 — Gym kitne baje jaata hai?\n\n"
             "Example: 6:00 PM"
         )
 
@@ -422,7 +428,7 @@ class ConversationManager:
         })
         return (
             "Gym time: " + gym_time + "\n\n"
-            "Q13/13 (LAST!) — Raat ko kitne baje sota hai?\n\n"
+            "Q13/16 — Raat ko kitne baje sota hai?\n\n"
             "Example: 11:00 PM"
         )
 
@@ -435,6 +441,98 @@ class ConversationManager:
 
         db_service.update_user(phone, {
             "sleep_time": sleep_time,
+            "onboarding_step": "collecting_experience"
+        })
+
+        return (
+            "Sleep time: " + sleep_time + "\n\n"
+            "Q14/16 — Kitne time se workout kar rahe ho?\n\n"
+            "1 - Just starting (0–2 weeks)\n"
+            "2 - Less than 1 month\n"
+            "3 - 1–2 months\n"
+            "4 - 2+ months\n\n"
+            "1 / 2 / 3 / 4 type karo"
+        )
+
+    def _collect_experience(self, phone: str, message: str) -> str:
+        experience_map = {
+            "1": "just_starting",
+            "2": "less_1_month",
+            "3": "1_2_months",
+            "4": "2_plus_months",
+            "just starting": "just_starting",
+            "beginner": "just_starting",
+            "less than 1 month": "less_1_month",
+            "1-2 months": "1_2_months",
+            "2+ months": "2_plus_months",
+        }
+        msg = message.lower().strip()
+        experience = experience_map.get(msg)
+        if not experience:
+            return "1 se 4 number type karo."
+
+        experience_labels = {
+            "just_starting": "Just Starting (0–2 weeks)",
+            "less_1_month": "Less than 1 month",
+            "1_2_months": "1–2 months",
+            "2_plus_months": "2+ months",
+        }
+        label = experience_labels[experience]
+
+        db_service.update_user(phone, {
+            "experience_level": experience,
+            "onboarding_step": "collecting_injuries"
+        })
+
+        return (
+            "Experience: " + label + "\n\n"
+            "Q15/16 — Koi injury ya medical condition hai?\n"
+            "(e.g., back pain, knee pain, shoulder injury)\n\n"
+            "Haan hai → details likho\n"
+            "Nahi hai → 'No' type karo"
+        )
+
+    def _collect_injuries(self, phone: str, message: str) -> str:
+        msg = message.strip()
+        msg_lower = msg.lower()
+
+        if msg_lower in ["no", "nahi", "nope", "none", "n", "nahi hai", "no injury"]:
+            injuries = None
+        else:
+            injuries = msg
+
+        db_service.update_user(phone, {
+            "injuries": injuries,
+            "onboarding_step": "collecting_cardio_preference"
+        })
+
+        injury_ack = (
+            "Noted! Plan mein injury ka dhyan rakha jayega.\n\n"
+            if injuries
+            else "Great! Koi injury nahi.\n\n"
+        )
+
+        return (
+            injury_ack
+            + "Q16/16 (LAST!) — Cardio kaisa chahiye?\n\n"
+            "1 - Dedicated cardio day (alag din cardio)\n"
+            "2 - Mix with workouts (har din ke saath)\n\n"
+            "1 / 2 type karo"
+        )
+
+    def _collect_cardio_preference(
+        self, phone: str, user: dict, message: str
+    ) -> str:
+        msg = message.lower().strip()
+        if msg in ["1", "dedicated", "alag", "separate"]:
+            cardio_preference = "dedicated"
+        elif msg in ["2", "mix", "mixed", "saath", "combined"]:
+            cardio_preference = "mix"
+        else:
+            return "1 (Dedicated) ya 2 (Mix) type karo."
+
+        db_service.update_user(phone, {
+            "cardio_preference": cardio_preference,
             "onboarding_step": "generating_plans"
         })
 
@@ -446,6 +544,20 @@ class ConversationManager:
         region = updated_user.get("region", "North Indian")
 
         # ── Profile confirm ──────────────────────────────────
+        experience_labels = {
+            "just_starting": "Just Starting",
+            "less_1_month": "< 1 Month",
+            "1_2_months": "1–2 Months",
+            "2_plus_months": "2+ Months",
+        }
+        exp_label = experience_labels.get(
+            updated_user.get("experience_level", ""), "N/A"
+        )
+        injuries = updated_user.get("injuries") or "None"
+        cardio_label = (
+            "Dedicated Day" if cardio_preference == "dedicated" else "Mixed"
+        )
+
         whatsapp_service.send_message(
             "whatsapp:" + phone,
             (
@@ -462,7 +574,10 @@ class ConversationManager:
                 "Region: " + str(region) + "\n"
                 "Gym Days: " + str(workout_days) + " per week\n"
                 "Session: " + str(updated_user.get("available_workout_time", 60)) + " min\n"
-                "Gym Time: " + str(updated_user.get("gym_time")) + "\n\n"
+                "Gym Time: " + str(updated_user.get("gym_time")) + "\n"
+                "Experience: " + exp_label + "\n"
+                "Injuries: " + str(injuries) + "\n"
+                "Cardio: " + cardio_label + "\n\n"
                 "Plan generate ho raha hai...\n"
                 "30 seconds wait karo!"
             )
