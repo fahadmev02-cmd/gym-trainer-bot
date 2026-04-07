@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_TODAY = lambda: date.today().isoformat()  # noqa: E731
+def _today() -> str:
+    return date.today().isoformat()
 
 
 class DatabaseService:
@@ -103,7 +104,7 @@ class DatabaseService:
             if not user:
                 return {}
 
-            today = _TODAY()
+            today = _today()
             last_checkin = user.get("last_checkin_date")
             streak = int(user.get("streak_count", 0))
             longest = int(user.get("longest_streak", 0))
@@ -166,7 +167,7 @@ class DatabaseService:
     def add_calorie_log(self, phone: str, calories: int, notes: str = ""):
         try:
             entry = {
-                "date": _TODAY(),
+                "date": _today(),
                 "calories": calories,
                 "notes": notes
             }

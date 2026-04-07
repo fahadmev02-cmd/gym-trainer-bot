@@ -307,11 +307,11 @@ class AIService:
         budget = str(user_data.get("budget", "medium"))
         region = str(user_data.get("region", "North Indian"))
 
-        diet_lower = diet_type.lower()
-        if "vegan" in diet_lower:
+        diet_lower = diet_type.lower().strip()
+        if diet_lower == "vegan":
             protein_sources = "tofu, soya chunks, dal, sprouts, peanut butter"
             restriction = "STRICTLY VEGAN - No dairy, no eggs, no meat"
-        elif "jain" in diet_lower:
+        elif diet_lower == "jain":
             protein_sources = "paneer, dal, tofu, nuts, seeds"
             restriction = "JAIN - No root vegetables (no onion, garlic, potato, carrot, beet)"
         elif "veg" in diet_lower:

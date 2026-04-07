@@ -686,7 +686,15 @@ class ConversationManager:
         weekly = result.get("weekly", 0)
         total = result.get("total", 0)
 
-        reward = engagement_service.get_streak_reward(streak, total)
+        rewarded = user.get("rewarded_milestones", [])
+        reward, reward_key = engagement_service.get_streak_reward(
+            streak, total, rewarded_milestones=rewarded
+        )
+
+        # Persist newly awarded milestone so it isn't shown again
+        if reward_key:
+            rewarded = list(rewarded) + [reward_key]
+            db_service.update_user(phone, {"rewarded_milestones": rewarded})
 
         base_msg = (
             "WORKOUT DONE! 💪\n\n"
@@ -723,15 +731,16 @@ class ConversationManager:
 
         label = engagement_service.get_consistency_label(score)
 
-        # Weekly progress bar
+        # Weekly progress bar — cap so bar never goes negative
         done_bars = min(weekly, workout_days)
-        bar = "[" + "#" * done_bars + "-" * (workout_days - done_bars) + "]"
+        remaining = max(0, workout_days - done_bars)
+        bar = "[" + "#" * done_bars + "-" * remaining + "]"
 
         # Calorie logs (last 3 days)
         cal_logs = user.get("calorie_logs", [])
         cal_section = ""
         if cal_logs:
-            last = cal_logs[-3:] if len(cal_logs) >= 3 else cal_logs
+            last = cal_logs[-3:]
             cal_lines = ""
             for entry in last:
                 cal_lines += (

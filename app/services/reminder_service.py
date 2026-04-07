@@ -201,13 +201,14 @@ class ReminderService:
             for user in inactive_users:
                 phone = user.get("phone")
                 name = user.get("name", "bhai")
-                days_since = int(
-                    (
-                        datetime.utcnow() - user.get(
-                            "last_interaction", datetime.utcnow()
-                        )
-                    ).total_seconds() // 86400
-                )
+                last = user.get("last_interaction")
+                if last is None:
+                    days_since = 1
+                else:
+                    days_since = max(
+                        1,
+                        int((datetime.utcnow() - last).total_seconds() // 86400)
+                    )
                 nudge = engagement_service.get_nudge_message(days_since)
                 whatsapp_service.send_reminder(
                     phone,

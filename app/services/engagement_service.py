@@ -115,21 +115,41 @@ class EngagementService:
     def get_skip_coaching(self) -> str:
         return random.choice(self._SKIP_COACHING)
 
-    def get_streak_reward(self, streak: int, total_workouts: int) -> str:
+    def get_streak_reward(
+        self, streak: int, total_workouts: int,
+        rewarded_milestones: list = None
+    ) -> str:
+        """
+        Return a reward message for streak or workout-count milestones.
+
+        rewarded_milestones: list of already-awarded milestone keys (strings)
+        to avoid showing the same reward twice.  Pass user's
+        ``rewarded_milestones`` field from MongoDB if available.
+        """
+        if rewarded_milestones is None:
+            rewarded_milestones = []
+
         reward = None
-        # Check streak milestones
-        for milestone, msg in sorted(self._STREAK_REWARDS.items(), reverse=True):
-            if streak >= milestone:
-                reward = msg
+        reward_key = None
+
+        # Check total workout milestones first (rarer, higher priority)
+        for milestone in sorted(self._MILESTONE_WORKOUTS.keys(), reverse=True):
+            key = "workout_" + str(milestone)
+            if total_workouts >= milestone and key not in rewarded_milestones:
+                reward = self._MILESTONE_WORKOUTS[milestone]
+                reward_key = key
                 break
-        # Check total workout milestones
-        for milestone, msg in sorted(
-            self._MILESTONE_WORKOUTS.items(), reverse=True
-        ):
-            if total_workouts == milestone:
-                reward = msg
-                break
-        return reward or ""
+
+        # If no workout milestone, check streak milestones
+        if reward is None:
+            for milestone in sorted(self._STREAK_REWARDS.keys(), reverse=True):
+                key = "streak_" + str(milestone)
+                if streak >= milestone and key not in rewarded_milestones:
+                    reward = self._STREAK_REWARDS[milestone]
+                    reward_key = key
+                    break
+
+        return reward or "", reward_key
 
     def get_nudge_message(self, days_inactive: int) -> str:
         return random.choice(self._NUDGE_MESSAGES)
